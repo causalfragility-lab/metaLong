@@ -1,2 +1,7 @@
 ^.*\.Rproj$
 ^\.Rproj\.user$
+^\.gitignore$
+^README\.md$
+^cran-comments\.md$
+^data-raw$
+^inst/WORDLIST$

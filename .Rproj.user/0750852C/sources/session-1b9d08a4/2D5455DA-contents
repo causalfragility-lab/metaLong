@@ -1,0 +1,157 @@
+---
+title: "Introduction to metaLong"
+output:
+  rmarkdown::html_vignette:
+    toc: true
+    toc_depth: 3
+vignette: >
+  %\VignetteIndexEntry{Introduction to metaLong}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  collapse  = TRUE,
+  comment   = "#>",
+  fig.width = 6,
+  fig.height = 4
+)
+```
+
+## Overview
+
+`metaLong` provides a coherent workflow for synthesising evidence from studies
+that report outcomes at **multiple follow-up time points**.  The package covers:
+
+- **Pooling** — `ml_meta()` fits a random-effects model at each time point
+  using robust variance estimation (RVE) with Tipton small-sample corrections.
+- **Sensitivity** — `ml_sens()` computes the time-varying Impact Threshold for
+  a Confounding Variable (ITCV).
+- **Benchmark calibration** — `ml_benchmark()` compares observed covariate
+  partial correlations against the ITCV threshold.
+- **Nonlinear trends** — `ml_spline()` fits a natural cubic spline over time.
+- **Fragility** — `ml_fragility()` identifies how many study removals flip
+  significance.
+
+## 1. Simulating data
+
+```{r simulate}
+library(metaLong)
+
+dat <- sim_longitudinal_meta(
+  k    = 10,
+  times = c(0, 6, 12, 24),
+  mu   = c("0" = 0.30, "6" = 0.50, "12" = 0.42, "24" = 0.20),
+  tau  = 0.20,
+  seed = 42
+)
+
+head(dat, 6)
+```
+
+The data are in **long format**: one row per study x time combination.
+
+## 2. Longitudinal pooling: `ml_meta()`
+
+`ml_meta()` fits an intercept-only random-effects model at each time point
+with CR2 sandwich variance and Satterthwaite degrees of freedom.
+
+```{r ml_meta}
+meta <- ml_meta(dat, yi = "yi", vi = "vi", study = "study", time = "time")
+print(meta)
+```
+
+```{r plot_meta}
+plot(meta, main = "Pooled Effects Across Follow-Up")
+```
+
+## 3. Sensitivity analysis: `ml_sens()`
+
+`ml_sens()` computes ITCV_alpha(t) — the minimum partial correlation an
+omitted confounder must have with both treatment and outcome to render the
+result non-significant.
+
+```{r ml_sens}
+sens <- ml_sens(dat, meta, yi = "yi", vi = "vi",
+                study = "study", time = "time")
+print(sens)
+```
+
+```{r plot_sens}
+plot(sens)
+```
+
+Key trajectory summaries:
+
+```{r sens_summary}
+cat("Minimum ITCV_alpha:", round(attr(sens, "itcv_min"),  3), "\n")
+cat("Mean ITCV_alpha:   ", round(attr(sens, "itcv_mean"), 3), "\n")
+cat("Fragile proportion:", round(attr(sens, "fragile_prop"), 3), "\n")
+```
+
+## 4. Nonlinear time trend: `ml_spline()`
+
+```{r ml_spline}
+spl <- ml_spline(meta, df = 2)
+print(spl)
+```
+
+```{r plot_spline}
+plot(spl, main = "Spline Fit: Nonlinear Trajectory")
+```
+
+## 5. Combined figure: `ml_plot()`
+
+```{r ml_plot, fig.height = 6}
+ml_plot(meta, sens_obj = sens, spline_obj = spl,
+        main = "Longitudinal Meta-Analysis Profile")
+```
+
+## 6. Benchmark calibration: `ml_benchmark()`
+
+`ml_benchmark()` regresses each observed study-level covariate and flags
+those whose partial correlation exceeds the ITCV_alpha threshold.
+
+```{r ml_benchmark, eval = TRUE}
+bench <- ml_benchmark(
+  dat, meta, sens,
+  yi         = "yi", vi = "vi", study = "study", time = "time",
+  covariates = c("pub_year", "quality")
+)
+print(bench)
+```
+
+## 7. Fragility analysis: `ml_fragility()`
+
+The fragility index is the minimum number of study removals that flip
+significance at a given time point.
+
+```{r ml_fragility, eval = TRUE}
+frag <- ml_fragility(dat, meta,
+                     yi = "yi", vi = "vi", study = "study", time = "time",
+                     max_k = 1L, seed = 1)
+print(frag)
+```
+
+## 8. Accessing stored fits
+
+```{r fits}
+f <- fits(meta)
+cat("Stored model objects:", sum(!sapply(f, is.null)), "/", length(f), "\n")
+```
+
+## References
+
+Frank, K. A. (2000). Impact of a confounding variable on a regression
+coefficient. *Sociological Methods & Research*, 29(2), 147--194.
+<doi:10.1177/0049124100029002003>
+
+Hedges, L. V., Tipton, E., & Johnson, M. C. (2010). Robust variance
+estimation in meta-regression with dependent effect size estimates.
+*Research Synthesis Methods*, 1(1), 39--65.
+<doi:10.1002/jrsm.5>
+
+Tipton, E. (2015). Small sample adjustments for robust variance estimation
+with meta-regression. *Psychological Methods*, 20(3), 375--393.
+<doi:10.1037/met0000011>

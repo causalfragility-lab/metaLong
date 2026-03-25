@@ -107,17 +107,3 @@ system("git push")
 
 
 devtools::check_win_devel()
-
-
-
-
-# Verify it's there
-list.files(
-  "C:/Users/Owner/OneDrive - Michigan State University/Documents/metaLong/vignettes"
-)
-
-# Push to GitHub
-setwd("C:/Users/Owner/OneDrive - Michigan State University/Documents/metaLong")
-system("git add .")
-system('git commit -m "Add vignette, WORDLIST, update .Rbuildignore"')
-system("git push")
